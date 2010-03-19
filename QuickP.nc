@@ -10,7 +10,9 @@ module QuickP {
 	uses interface Packet;
 	uses interface SplitControl as RadioControl;
 
-	uses interface Timer<TMilli>;
+	uses interface Timer<TMilli> as AccelTimer;
+	uses interface Timer<TMilli> as StartTimer;
+	uses interface Timer<TMilli> as CountDownTimer;
 
 	uses interface Read<uint16_t> as ReadX;
 	uses interface Read<uint16_t> as ReadY;
@@ -35,6 +37,8 @@ implementation {
 
 	accel_t accelValues;
 	message_t bufx, bufy;
+	uint8_t countDown = 0;
+	bool startDone = FALSE;
 
 	task void processXValues();
 	task void processYValues();
@@ -48,7 +52,7 @@ implementation {
 	}
 
 	event void RadioControl.startDone(error_t err) {
-		call Timer.startPeriodic(TIMER_PERIOD);
+		call AccelTimer.startPeriodic(TIMER_PERIOD);
 	}
 
 	task void ReadSensors() {
@@ -59,8 +63,22 @@ implementation {
 			post ReadSensors();
 	}
 
-	event void Timer.fired() {
+	event void AccelTimer.fired() {
 		post ReadSensors();
+	}
+
+	event void StartTimer.fired() {
+		startDone = TRUE;
+		call Mts300Sounder.beep(100);
+		call CountDownTimer.startPeriodic(1024);
+	}
+
+	event void CountDownTimer.fired() {
+		if ( ++countDown >= 3 ) {
+			call Mts300Sounder.beep(1000);
+			call CountDownTimer.stop();
+		} else
+			call Mts300Sounder.beep(100);
 	}
 
 	event void ReadX.readDone(error_t result, uint16_t val) {
@@ -129,8 +147,16 @@ implementation {
 		payload->lastReading = y_angle;
 		payload->axis = FALSE;
 
-		if (y_angle >= 65 && y_angle <= 90)
-			call Mts300Sounder.beep(100);
+		if (y_angle >= 65 && y_angle <= 90) {
+			if ( ! call StartTimer.isRunning() && !startDone )
+				call StartTimer.startOneShot(1024);
+			//call Mts300Sounder.beep(100);
+		} else {
+			call StartTimer.stop();
+			call CountDownTimer.stop();
+			startDone = FALSE;
+			countDown = 0;
+		}
 
 		post sendMessageY();
 	}
@@ -152,9 +178,11 @@ implementation {
 		demo_message_t *demo_payload = (demo_message_t *)payload;
 		
 		call Leds.led2Toggle();
-		printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
-		//printfFloat((float)reading);
-		printfflush();
+		if ( demo_payload->lastReading < 65) {
+			printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
+			//printfFloat((float)reading);
+			printfflush();
+		}
 
 		return msg;
 	}
