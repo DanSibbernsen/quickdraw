@@ -1,0 +1,4 @@
+COMPONENT=QuickDrawC
+SENSORBOARD=mts300
+include $(MAKERULES)
+CFLAGS += -I$(TOSDIR)/lib/printf
