@@ -34,7 +34,7 @@ implementation {
 		NODE1_Y_POS_1G = 573,
 		NODE1_Y_NEG_1G = 462,
 
-		TIMER_PERIOD = 2
+		TIMER_PERIOD = 21
 	};
 
 	accel_t accelValues;
@@ -47,8 +47,11 @@ implementation {
 
 	task void processXValues();
 	task void processYValues();
+	task void ReportTime();
+	task void sendDrawTime();
 	uint16_t convertX(uint16_t data);
 	uint16_t convertY(uint16_t data);
+	void printfFloat(float toBePrinter);
 
 	event void Boot.booted() {
 		call RadioControl.start();
@@ -88,7 +91,6 @@ implementation {
 			call Mts300Sounder.beep(100);
 	}
 
-	task void ReportTime();
 	event void FireTimer.fired() {
 		call Mts300Sounder.beep(1000);
 		call DrawTimer.stop();
@@ -126,7 +128,6 @@ implementation {
 		post processYValues();
 	}
 
-	task void sendDrawTime();
 	task void ReportTime() {
 		demo_message_t *payload;
 		payload = (demo_message_t *)call Packet.getPayload(&bufd, sizeof(demo_message_t));
@@ -152,10 +153,11 @@ implementation {
 	}
 
 	task void processXValues() {
-		demo_message_t *payload;
 		uint16_t x_angle;
+		/*demo_message_t *payload;
 
-		//payload = (demo_message_t *)call Packet.getPayload(&bufx, sizeof(demo_message_t));
+		payload = (demo_message_t *)call Packet.getPayload(&bufx, sizeof(demo_message_t));
+		*/
 		x_angle = convertX(accelValues.x);
 		if (x_angle == (uint16_t)NULL)
 			return;
@@ -164,21 +166,25 @@ implementation {
 
 		payload->axis = TRUE;
 
-		post sendMessageX();*/
+		post sendMessageX();
+		*/
 	}
 
 	task void processYValues() {
-		demo_message_t *payload;
 		uint16_t y_angle;
+		/*demo_message_t *payload;
 
-		//payload = (demo_message_t *)call Packet.getPayload(&bufy, sizeof(demo_message_t));
+		payload = (demo_message_t *)call Packet.getPayload(&bufy, sizeof(demo_message_t));
+		*/
 		y_angle = convertY(accelValues.y);
 		
 		if (y_angle == (uint16_t)NULL)
 			return;
 
-		//payload->lastReading = y_angle;
-		//payload->axis = FALSE;
+		/*payload->lastReading = y_angle;
+		payload->axis = FALSE;
+		post sendMessageY();
+		*/
 
 		if (y_angle >= 65 && y_angle <= 90) {
 			if ( ! call StartTimer.isRunning() && !startDone )
@@ -191,49 +197,26 @@ implementation {
 			call FireTimer.stop();
 			call CountDownTimer.stop();
 			startDone = FALSE;
-			//checkFire = FALSE;
 			countDown = 0;
 		}
-
-		//post sendMessageY();
-	}
-
-	task void countdown() {
 	}
 
 	event void AMSend.sendDone(message_t *msg, error_t err) {
 		if(err != SUCCESS) {
 			post sendMessageX();
 			post sendMessageY();
-		} else {
+		} else
 			call Leds.led2Toggle();
-		}
 	}
 
-	void printfFloat(float toBePrinter);
 	event message_t * Receive.receive(message_t *msg, void *payload, uint8_t len) { 
 		demo_message_t *demo_payload = (demo_message_t *)payload;
 		
 		call Leds.led2Toggle();
 
-		/*if (demo_payload->axis && (demo_payload->lastReading <= 436 || demo_payload->lastReading >= 547))
-			printf ("Received X == %i\n", demo_payload->lastReading);
-		else if (demo_payload->axis)
-			printf ("X AXIS\n");
-		else if (!demo_payload->axis && (demo_payload->lastReading <= 474 || demo_payload->lastReading >= 580))
-			printf ("Received Y == %i\n", demo_payload->lastReading);
-		else if (!demo_payload->axis)
-			printf ("Y AXIS\n");
-
-		printfflush();*/
-
-
-		//if ( demo_payload->lastReading < 65) {
-			//printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
-			printf("Draw Time = %i\n", demo_payload->lastReading);
-			//printfFloat((float)reading);
-			printfflush();
-		//}
+		//printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
+		printf("Draw Time = %i\n", demo_payload->lastReading);
+		printfflush();
 
 		return msg;
 	}
@@ -270,20 +253,6 @@ implementation {
 
 		reading = asin(reading) * (180 / M_PI);// 57.29577951; // (180 / M_PI) = Degrees
 
-		/*printf ("Data = %d, X_POS_1G = %d\n", accel_data, x_pos_1g);
-		printf ("X angle = ");
-		printfFloat(reading);
-		printf ("Check: %ld\n", (uint32_t)reading);
-		printfflush();
-
-		if (reading < -90.0 || reading > 90.0) {
-			printf("Data = %i\n", accel_data);
-			printf("X POS 1G = %i\n", x_pos_1g);
-			printf("scale_factor = ");
-			printfFloat(scale_factor);
-			printfflush();
-		}*/
-
 		busy = FALSE;
 		return (uint16_t)fabs(reading);
 	}
@@ -315,19 +284,6 @@ implementation {
 		}
 
 		reading = asin(reading) * (180.0 / M_PI);//57.29577951;
-
-		/*printf ("Data = %d, Y_POS_1G = %d\n", accel_data, y_pos_1g);
-		printf ("Y angle = ");
-		printfFloat(reading);
-		printfflush();
-
-		if (reading < -90.0 || reading > 90.0) {
-			printf("Data = %i\n", accel_data);
-			printf("Y POS 1G = %i\n", y_pos_1g);
-			printf("scale_factor = ");
-			printfFloat(scale_factor);
-			printfflush();
-		}*/
 
 		busy = FALSE;
 		return (uint16_t)fabs(reading);
