@@ -189,7 +189,7 @@ implementation {
 		if (y_angle >= 65 && y_angle <= 90) {
 			if ( ! call StartTimer.isRunning() && !startDone )
 				call StartTimer.startOneShot(1024);
-		} else if (checkFire && y_angle >=0 && y_angle <= 25) {
+		} else if (checkFire && y_angle >=0 && y_angle <= 15) {
 			if (!call FireTimer.isRunning())
 				call FireTimer.startOneShot(512);
 		} else {
