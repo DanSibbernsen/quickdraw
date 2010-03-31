@@ -42,6 +42,7 @@ implementation {
 	uint8_t countDown = 0;
 	uint16_t draw_time = 0;
 	bool startDone = FALSE;
+	bool fireDone = FALSE;
 	bool checkFire = FALSE;
 	bool busy = FALSE;
 
@@ -79,6 +80,7 @@ implementation {
 		startDone = TRUE;
 		call Mts300Sounder.beep(100);
 		call CountDownTimer.startPeriodic(1024);
+		call Leds.led1On();
 	}
 
 	event void CountDownTimer.fired() {
@@ -86,6 +88,7 @@ implementation {
 			call Mts300Sounder.beep(500);
 			call CountDownTimer.stop();
 			call DrawTimer.startPeriodic(1);
+			call Leds.led2On();
 			checkFire = TRUE;
 		} else
 			call Mts300Sounder.beep(100);
@@ -94,7 +97,10 @@ implementation {
 	event void FireTimer.fired() {
 		call Mts300Sounder.beep(1000);
 		call DrawTimer.stop();
+		call Leds.led0On();
 		checkFire = FALSE;
+		startDone = FALSE;
+		fireDone = TRUE;
 		post ReportTime();
 	}
 
@@ -103,7 +109,7 @@ implementation {
 	}
 
 	event void ReadX.readDone(error_t result, uint16_t val) {
-		call Leds.led0Toggle();
+		//call Leds.led0Toggle();
 		if (result != SUCCESS) {
 			post ReadSensors();
 			return;
@@ -116,7 +122,7 @@ implementation {
 	}
 
 	event void ReadY.readDone(error_t result, uint16_t val) {
-		call Leds.led1Toggle();
+		//call Leds.led1Toggle();
 		if (result != SUCCESS) {
 			post ReadSensors();
 			return;
@@ -190,14 +196,25 @@ implementation {
 		if (y_angle >= 65 && y_angle <= 90) {
 			if ( ! call StartTimer.isRunning() && !startDone )
 				call StartTimer.startOneShot(1024);
-		} else if (checkFire && y_angle >=0 && y_angle <= 15) {
-			if (!call FireTimer.isRunning())
+		} else if ((checkFire || fireDone) && y_angle >=0 && y_angle <= 15) {
+			if (!call FireTimer.isRunning() && !fireDone)
 				call FireTimer.startOneShot(512);
-		} else {
+		} else if (!checkFire && !fireDone) {
+			call Leds.led0Off();
+			call Leds.led1Off();
+			call Leds.led2Off();
 			call StartTimer.stop();
 			call FireTimer.stop();
 			call CountDownTimer.stop();
 			startDone = FALSE;
+			fireDone = FALSE;
+			countDown = 0;
+		} else if (!checkFire) {
+			call StartTimer.stop();
+			call FireTimer.stop();
+			call CountDownTimer.stop();
+			startDone = FALSE;
+			fireDone = FALSE;
 			countDown = 0;
 		}
 	}
@@ -206,8 +223,8 @@ implementation {
 		if(err != SUCCESS) {
 			post sendMessageX();
 			post sendMessageY();
-		} else
-			call Leds.led2Toggle();
+		} //else
+			//call Leds.led2Toggle();
 	}
 
 	event message_t * Receive.receive(message_t *msg, void *payload, uint8_t len) { 
@@ -216,7 +233,7 @@ implementation {
 		call Leds.led2Toggle();
 
 		//printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
-		printf("%s's Draw Time = %i\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
+		printf("%s's Draw Time = %i ms\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
 		printfflush();
 
 		return msg;
@@ -252,7 +269,7 @@ implementation {
 			return (uint16_t)NULL;
 		}
 
-		reading = asin(reading) * (180 / M_PI);// 57.29577951; // (180 / M_PI) = Degrees
+		reading = asin(reading) * (180.0 / M_PI);// 57.29577951; // (180 / M_PI) = Degrees
 
 		busy = FALSE;
 		return (uint16_t)fabs(reading);
