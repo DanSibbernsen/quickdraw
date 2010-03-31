@@ -132,12 +132,13 @@ implementation {
 		demo_message_t *payload;
 		payload = (demo_message_t *)call Packet.getPayload(&bufd, sizeof(demo_message_t));
 		payload->lastReading = draw_time;
+		payload->axis = TOS_NODE_ID;
 		draw_time = 0;
 		post sendDrawTime();
 	}
 
 	task void sendDrawTime() {
-		if (call AMSend.send(1, &bufd, sizeof(demo_message_t)) != SUCCESS)
+		if (call AMSend.send(2, &bufd, sizeof(demo_message_t)) != SUCCESS)
 			post sendDrawTime();
 	}
 
@@ -215,7 +216,7 @@ implementation {
 		call Leds.led2Toggle();
 
 		//printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
-		printf("Draw Time = %i\n", demo_payload->lastReading);
+		printf("%s's Draw Time = %i\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
 		printfflush();
 
 		return msg;
