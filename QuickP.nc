@@ -72,11 +72,13 @@ implementation {
 			post ReadSensors();
 	}
 
-	event void AccelTimer.fired() {
+	event void AccelTimer.fired()
+	{
 		post ReadSensors();
 	}
 
-	event void StartTimer.fired() {
+	event void StartTimer.fired() 
+	{
 		startDone = TRUE;
 		call Mts300Sounder.beep(100);
 		call CountDownTimer.startPeriodic(1024);
@@ -199,17 +201,12 @@ implementation {
 		} else if ((checkFire || fireDone) && y_angle >=0 && y_angle <= 15) {
 			if (!call FireTimer.isRunning() && !fireDone)
 				call FireTimer.startOneShot(512);
-		} else if (!checkFire && !fireDone) {
-			call Leds.led0Off();
-			call Leds.led1Off();
-			call Leds.led2Off();
-			call StartTimer.stop();
-			call FireTimer.stop();
-			call CountDownTimer.stop();
-			startDone = FALSE;
-			fireDone = FALSE;
-			countDown = 0;
-		} else if (!checkFire) {
+		} else if (!checkFire && !fireDone) 
+		{
+			call AllStop();
+		} 
+		else if (!checkFire) 
+		{
 			call StartTimer.stop();
 			call FireTimer.stop();
 			call CountDownTimer.stop();
@@ -217,6 +214,19 @@ implementation {
 			fireDone = FALSE;
 			countDown = 0;
 		}
+	}
+
+	void AllStop()
+	{
+		call Leds.led0Off();
+		call Leds.led1Off();
+		call Leds.led2Off();
+		call StartTimer.stop();
+		call FireTimer.stop();
+		call CountDownTimer.stop();
+		startDone = FALSE;
+		fireDone = FALSE;
+		countDown = 0;
 	}
 
 	event void AMSend.sendDone(message_t *msg, error_t err) {
@@ -282,12 +292,14 @@ implementation {
 		int16_t y_pos_1g = (TOS_NODE_ID)? NODE1_Y_POS_1G : NODE0_Y_POS_1G;
 		bool local_busy = FALSE;
 
-		atomic {
+		atomic 
+		{
 			local_busy = busy;
 			busy = TRUE;
 		}
 
-		if (local_busy) {
+		if (local_busy) 
+		{
 			printf ("!!!SKIPPING VALUES!!!!\n" );
 			return (uint16_t)NULL;
 		}
@@ -312,9 +324,11 @@ implementation {
 		char c;
 		float f = toBePrinted;
 
-		if (f<0){
+		if (f<0)
+		{
 			c = '-'; f = -f;
-		} else {
+		} else 
+		{
 			c = ' ';
 		}
 
