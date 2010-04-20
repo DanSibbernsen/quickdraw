@@ -23,20 +23,6 @@ module QuickP {
 	uses interface Mts300Sounder;
 }
 implementation {
-	enum {
-		NODE0_X_POS_1G = 547,
-		NODE0_X_NEG_1G = 436,
-		NODE0_Y_POS_1G = 580,
-		NODE0_Y_NEG_1G = 474,
-
-		NODE1_X_POS_1G = 551,
-		NODE1_X_NEG_1G = 440,
-		NODE1_Y_POS_1G = 573,
-		NODE1_Y_NEG_1G = 462,
-
-		TIMER_PERIOD = 21
-	};
-
 	accel_t accelValues;
 	message_t bufx, bufy, bufd;
 	uint8_t countDown = 0;
