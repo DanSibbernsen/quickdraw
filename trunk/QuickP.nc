@@ -24,21 +24,25 @@ module QuickP {
 }
 implementation {
 	accel_t accelValues;
-	message_t bufx, bufy, bufd;
+	message_t bufx, bufy, bufd, buf_ref;
 	uint8_t countDown = 0;
 	uint16_t draw_time = 0;
 	bool startDone = FALSE;
 	bool fireDone = FALSE;
 	bool checkFire = FALSE;
 	bool busy = FALSE;
+	bool readyReceived = FALSE;
 
 	task void processXValues();
 	task void processYValues();
 	task void ReportTime();
 	task void sendDrawTime();
+	task void sendMessageY();
 	uint16_t convertX(uint16_t data);
 	uint16_t convertY(uint16_t data);
 	void printfFloat(float toBePrinter);
+	void reset();
+	void resetAll();
 
 	event void Boot.booted() {
 		call RadioControl.start();
@@ -51,8 +55,8 @@ implementation {
 	}
 
 	task void ReadSensors() {
-		if (call ReadX.read() != SUCCESS)
-			post ReadSensors();
+		//if (call ReadX.read() != SUCCESS)
+			//post ReadSensors();
 		
 		if (call ReadY.read() != SUCCESS)
 			post ReadSensors();
@@ -63,10 +67,17 @@ implementation {
 	}
 
 	event void StartTimer.fired() {
+		quick_message *payload;
+
+		payload = (quick_message *)call Packet.getPayload(&bufy, sizeof(quick_message));
+		payload->id = TOS_NODE_ID;
+		payload->messageType = READY;
+		post sendMessageY();
+
 		startDone = TRUE;
 		call Mts300Sounder.beep(100);
-		call CountDownTimer.startPeriodic(1024);
-		call Leds.led1On();
+		//call CountDownTimer.startPeriodic(1024);
+		//call Leds.led1On();
 	}
 
 	event void CountDownTimer.fired() {
@@ -121,10 +132,11 @@ implementation {
 	}
 
 	task void ReportTime() {
-		demo_message_t *payload;
-		payload = (demo_message_t *)call Packet.getPayload(&bufd, sizeof(demo_message_t));
-		payload->lastReading = draw_time;
-		payload->axis = TOS_NODE_ID;
+		quick_message *payload;
+		payload = (quick_message *)call Packet.getPayload(&bufd, sizeof(quick_message));
+		payload->time = draw_time;
+		payload->id = TOS_NODE_ID;
+		payload->messageType = FIRE;
 		draw_time = 0;
 		post sendDrawTime();
 	}
@@ -141,8 +153,18 @@ implementation {
 	}
 
 	task void sendMessageY() {
-		if (call AMSend.send(1, &bufy, sizeof(demo_message_t)) != SUCCESS)
+		if (call AMSend.send(2, &bufy, sizeof(quick_message)) != SUCCESS)
 			post sendMessageY();
+	}
+
+	task void sendMessageAll() {
+		if (call AMSend.send(AM_BROADCAST_ADDR, &bufx, sizeof(quick_message)) != SUCCESS)
+			post sendMessageAll();
+	}
+
+	task void sendMessageRef() {
+		if (call AMSend.send(AM_BROADCAST_ADDR, &buf_ref, sizeof(quick_message)) != SUCCESS)
+			post sendMessageRef();
 	}
 
 	task void processXValues() {
@@ -165,19 +187,11 @@ implementation {
 
 	task void processYValues() {
 		uint16_t y_angle;
-		/*demo_message_t *payload;
-
-		payload = (demo_message_t *)call Packet.getPayload(&bufy, sizeof(demo_message_t));
-		*/
+		
 		y_angle = convertY(accelValues.y);
 		
 		if (y_angle == (uint16_t)NULL)
 			return;
-
-		/*payload->lastReading = y_angle;
-		payload->axis = FALSE;
-		post sendMessageY();
-		*/
 
 		if (y_angle >= 65 && y_angle <= 90) {
 			if ( ! call StartTimer.isRunning() && !startDone )
@@ -186,41 +200,83 @@ implementation {
 			if (!call FireTimer.isRunning() && !fireDone)
 				call FireTimer.startOneShot(512);
 		} else if (!checkFire && !fireDone) {
-			call Leds.led0Off();
-			call Leds.led1Off();
-			call Leds.led2Off();
-			call StartTimer.stop();
-			call FireTimer.stop();
-			call CountDownTimer.stop();
-			startDone = FALSE;
-			fireDone = FALSE;
-			countDown = 0;
+			quick_message *payload;
+			if (startDone) {
+				payload = (quick_message *)call Packet.getPayload(&bufx, sizeof(quick_message));
+				payload->id = TOS_NODE_ID;
+				payload->messageType = STOP;
+				post sendMessageAll();
+			}
+			resetAll();
 		} else if (!checkFire) {
-			call StartTimer.stop();
-			call FireTimer.stop();
-			call CountDownTimer.stop();
-			startDone = FALSE;
-			fireDone = FALSE;
-			countDown = 0;
+			reset();
 		}
 	}
 
 	event void AMSend.sendDone(message_t *msg, error_t err) {
 		if(err != SUCCESS) {
-			post sendMessageX();
+			//post sendMessageX();
 			post sendMessageY();
 		} //else
 			//call Leds.led2Toggle();
 	}
 
+	void reset() {
+		call StartTimer.stop();
+		call FireTimer.stop();
+		call CountDownTimer.stop();
+		startDone = FALSE;
+		fireDone = FALSE;
+		countDown = 0;
+	}
+
+	void resetAll() {
+		call Leds.led0Off();
+		call Leds.led1Off();
+		call Leds.led2Off();
+		reset();
+	}
+
 	event message_t * Receive.receive(message_t *msg, void *payload, uint8_t len) { 
-		demo_message_t *demo_payload = (demo_message_t *)payload;
+		quick_message *payload_out;
+		quick_message *payload_in = (quick_message *)payload;
 		
+		payload_out = (quick_message *)call Packet.getPayload(&buf_ref, sizeof(quick_message));
+
 		call Leds.led2Toggle();
 
+		if (TOS_NODE_ID < 2) {
+			if (payload_in->messageType == START) {
+				call CountDownTimer.startPeriodic(1024);
+				call Leds.led1On();
+			} else if (payload_in->messageType == STOP) {
+				resetAll();
+			}
+		} else {
+			if (payload_in->messageType == READY) {
+				printf ("Received Ready from %s(%i)\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
+				printfflush();
+
+				if (readyReceived) {
+					payload_out->id = TOS_NODE_ID;
+					payload_out->messageType = START;
+					post sendMessageRef();
+					readyReceived = FALSE;
+				} else
+					readyReceived = TRUE;
+			} else if (payload_in->messageType == FIRE) {
+				printf("%s's Draw Time = %i ms\n", (payload_in->id)? "Cronin": "Dan", payload_in->time);
+				printfflush();
+			} else if (payload_in->messageType ==  STOP) {
+				printf("%s(%i) messed up, starting over!\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
+				printfflush();
+				readyReceived = FALSE;
+			}
+		}
+
 		//printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
-		printf("%s's Draw Time = %i ms\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
-		printfflush();
+		//printf("%s's Draw Time = %i ms\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
+		//printfflush();
 
 		return msg;
 	}
