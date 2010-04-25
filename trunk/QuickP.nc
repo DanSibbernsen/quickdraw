@@ -25,7 +25,7 @@ module QuickP {
 }
 implementation {
 	accel_t accelValues;
-	message_t bufx, bufy, bufd, buf_ref;
+	message_t bufx, bufy, bufd, buf_ref, buf_ack;
 	uint8_t countDown = 0;
 	uint16_t draw_time = 0;
 	bool startDone = FALSE;
@@ -161,6 +161,12 @@ implementation {
 			post sendMessageY();
 	}
 
+	task void sendACK()
+	{
+		if (call AMSend.send(2, &bufy, sizeof(quick_message)) != SUCCESS)
+			post sendACK();
+	}
+
 	task void sendMessageAll() {
 		if (call AMSend.send(AM_BROADCAST_ADDR, &bufx, sizeof(quick_message)) != SUCCESS)
 			post sendMessageAll();
@@ -265,6 +271,10 @@ implementation {
 
 		if (TOS_NODE_ID < 2) {
 			if (payload_in->messageType == START) {
+				payload_out = (quick_message *)call Packet.getPayload(&buf_ack, sizeof(quick_message));
+				payload_out->id = TOS_NODE_ID;
+				payload_out->messageType = ACK;
+				post sendACK();
 				call CountDownTimer.startPeriodic(1024);
 				call Leds.led1On();
 			} else if (payload_in->messageType == STOP) {
