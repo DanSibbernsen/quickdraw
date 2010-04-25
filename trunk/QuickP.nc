@@ -33,7 +33,11 @@ implementation {
 	bool checkFire = FALSE;
 	bool busy = FALSE;
 	bool readyReceived = FALSE;
-	int numberOfACKsReceived = 0;
+	uint8_t numberOfACKsReceived = 0;
+	int8_t ack_node_id_0;
+	int8_t ack_node_id_1;
+	uint16_t Node0FireTime = 0;
+	uint16_t Node1FireTime = 0;
 
 	task void processXValues();
 	task void processYValues();
@@ -163,7 +167,7 @@ implementation {
 
 	task void sendACK()
 	{
-		if (call AMSend.send(2, &bufy, sizeof(quick_message)) != SUCCESS)
+		if (call AMSend.send(2, &buf_ack, sizeof(quick_message)) != SUCCESS)
 			post sendACK();
 	}
 
@@ -178,10 +182,21 @@ implementation {
 
 		if(numberOfACKsReceived < 2)
 		{
+
 			payload = (quick_message *)call Packet.getPayload(&bufx, sizeof(quick_message));
 			payload->id = TOS_NODE_ID;
 			payload->messageType = STOP;
 			post sendMessageAll();
+			readyReceived = FALSE;
+			if(ack_node_id_1 == -1)
+			{
+				printf ("Did NOT receive ACK from %s, resetting...\n", "Dan");
+			}
+			if (ack_node_id_0 == -1)
+			{
+				printf ("Did NOT receive ACK from %s, resetting...\n", "Cronin");
+			}
+			printfflush();
 		}
 		
 	}
@@ -249,6 +264,7 @@ implementation {
 		call StartTimer.stop();
 		call FireTimer.stop();
 		call CountDownTimer.stop();
+		call DrawTimer.stop();
 		startDone = FALSE;
 		fireDone = FALSE;
 		countDown = 0;
@@ -286,16 +302,40 @@ implementation {
 				printfflush();
 
 				if (readyReceived) {
+					ack_node_id_0 = -1;
+					ack_node_id_1 = -1;
+					Node0FireTime = 0;
+					Node1FireTime = 0;
 					payload_out->id = TOS_NODE_ID;
 					payload_out->messageType = START;
 					numberOfACKsReceived = 0;
-					call ACKTimer.startPeriodic(2560);
+					call ACKTimer.startPeriodic(1536); // 1.5 secs to make sure both motes ACK the START packet
 					post sendMessageRef();
 					readyReceived = FALSE;
 				} else
 					readyReceived = TRUE;
 			} else if (payload_in->messageType == FIRE) {
+				if(payload_in->id == 0)
+				{
+					Node0FireTime = payload_in->time;
+				}
+				else if(payload_in->id == 1)
+				{
+					Node1FireTime = payload_in->time;
+				}
 				printf("%s's Draw Time = %i ms\n", (payload_in->id)? "Cronin": "Dan", payload_in->time);
+				if(Node1FireTime != 0 && Node0FireTime != 0)
+				{
+					if(Node0FireTime < Node1FireTime)
+					{
+						printf("Dan (node 0) wins!\n");
+					}
+					else
+					{
+						printf("Cronin (node 1) wins!\n");
+					}
+
+				}
 				printfflush();
 			} else if (payload_in->messageType ==  STOP) {
 				printf("%s(%i) messed up, starting over!\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
@@ -304,7 +344,16 @@ implementation {
 			}
 			else if (payload_in->messageType == ACK) {
 				printf("%s(%i) has sent an ACK\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
+				printfflush();
 				++numberOfACKsReceived;
+				if(payload_in->id)
+				{
+					ack_node_id_1 = 1;
+				}
+				else
+				{
+					ack_node_id_0 = 1;
+				}
 			}
 		}
 
