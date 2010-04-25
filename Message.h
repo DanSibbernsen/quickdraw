@@ -37,7 +37,8 @@ typedef enum
 	READY = 0, //mote is facing downward, we are ready for countdown (between gun-mote and control-mote)
 	START = 1, //motes are ready, GO!  This is only sent by the control-mote
 	STOP = 2, //somebody was dumb or cheated, stop the game (between 2 gun-motes)
-	FIRE = 3 //fire the packet.  fire it like it's hot. (between gun-mote and control-mote)
+	FIRE = 3, //fire the packet.  fire it like it's hot. (between gun-mote and control-mote)
+	ACK = 4
 } message_type;
 
 #endif __MESSAGE_H
