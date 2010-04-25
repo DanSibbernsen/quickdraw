@@ -15,6 +15,7 @@ module QuickP {
 	uses interface Timer<TMilli> as CountDownTimer;
 	uses interface Timer<TMilli> as FireTimer;
 	uses interface Timer<TMilli> as DrawTimer;
+	uses interface Timer<TMilli> as ACKTimer;
 
 	uses interface Read<uint16_t> as ReadX;
 	uses interface Read<uint16_t> as ReadY;
@@ -32,12 +33,14 @@ implementation {
 	bool checkFire = FALSE;
 	bool busy = FALSE;
 	bool readyReceived = FALSE;
+	int numberOfACKsReceived = 0;
 
 	task void processXValues();
 	task void processYValues();
 	task void ReportTime();
 	task void sendDrawTime();
 	task void sendMessageY();
+	task void sendACK();
 	uint16_t convertX(uint16_t data);
 	uint16_t convertY(uint16_t data);
 	void printfFloat(float toBePrinter);
@@ -65,6 +68,7 @@ implementation {
 	event void AccelTimer.fired() {
 		post ReadSensors();
 	}
+
 
 	event void StartTimer.fired() {
 		quick_message *payload;
@@ -160,6 +164,20 @@ implementation {
 	task void sendMessageAll() {
 		if (call AMSend.send(AM_BROADCAST_ADDR, &bufx, sizeof(quick_message)) != SUCCESS)
 			post sendMessageAll();
+	}
+
+
+	event void ACKTimer.fired() {
+		quick_message *payload;
+
+		if(numberOfACKsReceived < 2)
+		{
+			payload = (quick_message *)call Packet.getPayload(&bufx, sizeof(quick_message));
+			payload->id = TOS_NODE_ID;
+			payload->messageType = STOP;
+			post sendMessageAll();
+		}
+		
 	}
 
 	task void sendMessageRef() {
@@ -260,6 +278,8 @@ implementation {
 				if (readyReceived) {
 					payload_out->id = TOS_NODE_ID;
 					payload_out->messageType = START;
+					numberOfACKsReceived = 0;
+					call ACKTimer.startPeriodic(2560);
 					post sendMessageRef();
 					readyReceived = FALSE;
 				} else
@@ -271,6 +291,10 @@ implementation {
 				printf("%s(%i) messed up, starting over!\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
 				printfflush();
 				readyReceived = FALSE;
+			}
+			else if (payload_in->messageType == ACK) {
+				printf("%s(%i) has sent an ACK\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
+				++numberOfACKsReceived;
 			}
 		}
 
