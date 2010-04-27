@@ -38,6 +38,7 @@ implementation {
 	int8_t ack_node_id_1;
 	uint16_t Node0FireTime = 0;
 	uint16_t Node1FireTime = 0;
+	Player_Stats playerStats;
 
 	task void processXValues();
 	task void processYValues();
@@ -329,11 +330,20 @@ implementation {
 					if(Node0FireTime < Node1FireTime)
 					{
 						printf("Dan (node 0) wins!\n");
+						playerStats.winnerId = 0;
+					}
+					else if(Node1FireTime < Node0FireTime)
+					{
+						printf("Cronin (node 1) wins!\n");
+						playerStats.winnerId = 1;
 					}
 					else
 					{
-						printf("Cronin (node 1) wins!\n");
+						printf("The match is a draw!\n");
+						playerStats.winnerId = -1;
 					}
+					playerStats.p0DrawTime = Node0FireTime;
+					playerStats.p1DrawTime = Node1FireTime;
 
 				}
 				printfflush();
