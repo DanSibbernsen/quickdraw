@@ -31,6 +31,13 @@ typedef nx_struct message
 	nx_uint16_t time;
 } quick_message;
 
+typedef nx_struct playerStats
+{
+	nx_int8_t  winnerId;
+	nx_uint32_t p0DrawTime;
+	nx_uint32_t p1DrawTime;
+} Player_Stats;
+
 
 typedef enum
 {
