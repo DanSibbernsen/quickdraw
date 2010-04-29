@@ -33,6 +33,7 @@ implementation {
 	bool checkFire = FALSE;
 	bool busy = FALSE;
 	bool readyReceived = FALSE;
+	bool roundOver = FALSE;
 	uint8_t numberOfACKsReceived = 0;
 	int8_t ack_node_id_0;
 	int8_t ack_node_id_1;
@@ -54,8 +55,6 @@ implementation {
 
 	event void Boot.booted() {
 		call RadioControl.start();
-		printf ("My ID is %d\n", TOS_NODE_ID);
-		printfflush();
 	}
 
 	event void RadioControl.startDone(error_t err) {
@@ -269,6 +268,7 @@ implementation {
 		startDone = FALSE;
 		fireDone = FALSE;
 		countDown = 0;
+		roundOver = FALSE;
 	}
 
 	void resetAll() {
@@ -327,6 +327,7 @@ implementation {
 				printf("%s's Draw Time = %i ms\n", (payload_in->id)? "Cronin": "Dan", payload_in->time);
 				if(Node1FireTime != 0 && Node0FireTime != 0)
 				{
+					roundOver = TRUE;
 					if(Node0FireTime < Node1FireTime)
 					{
 						printf("Dan (node 0) wins!\n");
@@ -347,6 +348,13 @@ implementation {
 
 				}
 				printfflush();
+
+				if (roundOver) {
+					printf("db 0 %ld %i %i\n", playerStats.p0DrawTime, (playerStats.winnerId)? 0:1, (playerStats.winnerId == -1)? 1:0);
+					printfflush();
+					printf("db 1 %ld %i %i\n", playerStats.p1DrawTime, (playerStats.winnerId)? 1:0, (playerStats.winnerId == -1)? 1:0);
+					printfflush();
+				}
 			} else if (payload_in->messageType ==  STOP) {
 				printf("%s(%i) messed up, starting over!\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
 				printfflush();
