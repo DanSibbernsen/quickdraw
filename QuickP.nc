@@ -15,6 +15,7 @@ module QuickP {
 	uses interface Timer<TMilli> as CountDownTimer;
 	uses interface Timer<TMilli> as FireTimer;
 	uses interface Timer<TMilli> as DrawTimer;
+	uses interface Timer<TMilli> as ACKTimer;
 
 	uses interface Read<uint16_t> as ReadX;
 	uses interface Read<uint16_t> as ReadY;
@@ -23,41 +24,37 @@ module QuickP {
 	uses interface Mts300Sounder;
 }
 implementation {
-	enum {
-		NODE0_X_POS_1G = 547,
-		NODE0_X_NEG_1G = 436,
-		NODE0_Y_POS_1G = 580,
-		NODE0_Y_NEG_1G = 474,
-
-		NODE1_X_POS_1G = 551,
-		NODE1_X_NEG_1G = 440,
-		NODE1_Y_POS_1G = 573,
-		NODE1_Y_NEG_1G = 462,
-
-		TIMER_PERIOD = 21
-	};
-
 	accel_t accelValues;
-	message_t bufx, bufy, bufd;
+	message_t bufx, bufy, bufd, buf_ref, buf_ack;
 	uint8_t countDown = 0;
 	uint16_t draw_time = 0;
 	bool startDone = FALSE;
 	bool fireDone = FALSE;
 	bool checkFire = FALSE;
 	bool busy = FALSE;
+	bool readyReceived = FALSE;
+	bool roundOver = FALSE;
+	uint8_t numberOfACKsReceived = 0;
+	int8_t ack_node_id_0;
+	int8_t ack_node_id_1;
+	uint16_t Node0FireTime = 0;
+	uint16_t Node1FireTime = 0;
+	Player_Stats playerStats;
 
 	task void processXValues();
 	task void processYValues();
 	task void ReportTime();
 	task void sendDrawTime();
+	task void sendMessageY();
+	task void sendACK();
 	uint16_t convertX(uint16_t data);
 	uint16_t convertY(uint16_t data);
 	void printfFloat(float toBePrinter);
+	void reset();
+	void resetAll();
 
 	event void Boot.booted() {
 		call RadioControl.start();
-		printf ("My ID is %d\n", TOS_NODE_ID);
-		printfflush();
 	}
 
 	event void RadioControl.startDone(error_t err) {
@@ -65,24 +62,30 @@ implementation {
 	}
 
 	task void ReadSensors() {
-		if (call ReadX.read() != SUCCESS)
-			post ReadSensors();
+		//if (call ReadX.read() != SUCCESS)
+			//post ReadSensors();
 		
 		if (call ReadY.read() != SUCCESS)
 			post ReadSensors();
 	}
 
-	event void AccelTimer.fired()
-	{
+	event void AccelTimer.fired() {
 		post ReadSensors();
 	}
 
-	event void StartTimer.fired() 
-	{
+
+	event void StartTimer.fired() {
+		quick_message *payload;
+
+		payload = (quick_message *)call Packet.getPayload(&bufy, sizeof(quick_message));
+		payload->id = TOS_NODE_ID;
+		payload->messageType = READY;
+		post sendMessageY();
+
 		startDone = TRUE;
 		call Mts300Sounder.beep(100);
-		call CountDownTimer.startPeriodic(1024);
-		call Leds.led1On();
+		//call CountDownTimer.startPeriodic(1024);
+		//call Leds.led1On();
 	}
 
 	event void CountDownTimer.fired() {
@@ -137,10 +140,11 @@ implementation {
 	}
 
 	task void ReportTime() {
-		demo_message_t *payload;
-		payload = (demo_message_t *)call Packet.getPayload(&bufd, sizeof(demo_message_t));
-		payload->lastReading = draw_time;
-		payload->axis = TOS_NODE_ID;
+		quick_message *payload;
+		payload = (quick_message *)call Packet.getPayload(&bufd, sizeof(quick_message));
+		payload->time = draw_time;
+		payload->id = TOS_NODE_ID;
+		payload->messageType = FIRE;
 		draw_time = 0;
 		post sendDrawTime();
 	}
@@ -157,8 +161,49 @@ implementation {
 	}
 
 	task void sendMessageY() {
-		if (call AMSend.send(1, &bufy, sizeof(demo_message_t)) != SUCCESS)
+		if (call AMSend.send(2, &bufy, sizeof(quick_message)) != SUCCESS)
 			post sendMessageY();
+	}
+
+	task void sendACK()
+	{
+		if (call AMSend.send(2, &buf_ack, sizeof(quick_message)) != SUCCESS)
+			post sendACK();
+	}
+
+	task void sendMessageAll() {
+		if (call AMSend.send(AM_BROADCAST_ADDR, &bufx, sizeof(quick_message)) != SUCCESS)
+			post sendMessageAll();
+	}
+
+
+	event void ACKTimer.fired() {
+		quick_message *payload;
+
+		if(numberOfACKsReceived < 2)
+		{
+
+			payload = (quick_message *)call Packet.getPayload(&bufx, sizeof(quick_message));
+			payload->id = TOS_NODE_ID;
+			payload->messageType = STOP;
+			post sendMessageAll();
+			readyReceived = FALSE;
+			if(ack_node_id_1 == -1)
+			{
+				printf ("Did NOT receive ACK from %s, resetting...\n", "Dan");
+			}
+			if (ack_node_id_0 == -1)
+			{
+				printf ("Did NOT receive ACK from %s, resetting...\n", "Cronin");
+			}
+			printfflush();
+		}
+		
+	}
+
+	task void sendMessageRef() {
+		if (call AMSend.send(AM_BROADCAST_ADDR, &buf_ref, sizeof(quick_message)) != SUCCESS)
+			post sendMessageRef();
 	}
 
 	task void processXValues() {
@@ -181,19 +226,11 @@ implementation {
 
 	task void processYValues() {
 		uint16_t y_angle;
-		/*demo_message_t *payload;
-
-		payload = (demo_message_t *)call Packet.getPayload(&bufy, sizeof(demo_message_t));
-		*/
+		
 		y_angle = convertY(accelValues.y);
 		
 		if (y_angle == (uint16_t)NULL)
 			return;
-
-		/*payload->lastReading = y_angle;
-		payload->axis = FALSE;
-		post sendMessageY();
-		*/
 
 		if (y_angle >= 65 && y_angle <= 90) {
 			if ( ! call StartTimer.isRunning() && !startDone )
@@ -201,50 +238,146 @@ implementation {
 		} else if ((checkFire || fireDone) && y_angle >=0 && y_angle <= 15) {
 			if (!call FireTimer.isRunning() && !fireDone)
 				call FireTimer.startOneShot(512);
-		} else if (!checkFire && !fireDone) 
-		{
-			call AllStop();
-		} 
-		else if (!checkFire) 
-		{
-			call StartTimer.stop();
-			call FireTimer.stop();
-			call CountDownTimer.stop();
-			startDone = FALSE;
-			fireDone = FALSE;
-			countDown = 0;
+		} else if (!checkFire && !fireDone) {
+			quick_message *payload;
+			if (startDone) {
+				payload = (quick_message *)call Packet.getPayload(&bufx, sizeof(quick_message));
+				payload->id = TOS_NODE_ID;
+				payload->messageType = STOP;
+				post sendMessageAll();
+			}
+			resetAll();
+		} else if (!checkFire) {
+			reset();
 		}
-	}
-
-	void AllStop()
-	{
-		call Leds.led0Off();
-		call Leds.led1Off();
-		call Leds.led2Off();
-		call StartTimer.stop();
-		call FireTimer.stop();
-		call CountDownTimer.stop();
-		startDone = FALSE;
-		fireDone = FALSE;
-		countDown = 0;
 	}
 
 	event void AMSend.sendDone(message_t *msg, error_t err) {
 		if(err != SUCCESS) {
-			post sendMessageX();
+			//post sendMessageX();
 			post sendMessageY();
 		} //else
 			//call Leds.led2Toggle();
 	}
 
+	void reset() {
+		call StartTimer.stop();
+		call FireTimer.stop();
+		call CountDownTimer.stop();
+		call DrawTimer.stop();
+		startDone = FALSE;
+		fireDone = FALSE;
+		countDown = 0;
+		roundOver = FALSE;
+	}
+
+	void resetAll() {
+		call Leds.led0Off();
+		call Leds.led1Off();
+		call Leds.led2Off();
+		reset();
+	}
+
 	event message_t * Receive.receive(message_t *msg, void *payload, uint8_t len) { 
-		demo_message_t *demo_payload = (demo_message_t *)payload;
+		quick_message *payload_out;
+		quick_message *payload_in = (quick_message *)payload;
 		
+		payload_out = (quick_message *)call Packet.getPayload(&buf_ref, sizeof(quick_message));
+
 		call Leds.led2Toggle();
 
+		if (TOS_NODE_ID < 2) {
+			if (payload_in->messageType == START) {
+				payload_out = (quick_message *)call Packet.getPayload(&buf_ack, sizeof(quick_message));
+				payload_out->id = TOS_NODE_ID;
+				payload_out->messageType = ACK;
+				post sendACK();
+				call CountDownTimer.startPeriodic(1024);
+				call Leds.led1On();
+			} else if (payload_in->messageType == STOP) {
+				resetAll();
+			}
+		} else {
+			if (payload_in->messageType == READY) {
+				printf ("Received Ready from %s(%i)\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
+				printfflush();
+
+				if (readyReceived) {
+					ack_node_id_0 = -1;
+					ack_node_id_1 = -1;
+					Node0FireTime = 0;
+					Node1FireTime = 0;
+					payload_out->id = TOS_NODE_ID;
+					payload_out->messageType = START;
+					numberOfACKsReceived = 0;
+					call ACKTimer.startPeriodic(1536); // 1.5 secs to make sure both motes ACK the START packet
+					post sendMessageRef();
+					readyReceived = FALSE;
+				} else
+					readyReceived = TRUE;
+			} else if (payload_in->messageType == FIRE) {
+				if(payload_in->id == 0)
+				{
+					Node0FireTime = payload_in->time;
+				}
+				else if(payload_in->id == 1)
+				{
+					Node1FireTime = payload_in->time;
+				}
+				printf("%s's Draw Time = %i ms\n", (payload_in->id)? "Cronin": "Dan", payload_in->time);
+				if(Node1FireTime != 0 && Node0FireTime != 0)
+				{
+					roundOver = TRUE;
+					if(Node0FireTime < Node1FireTime)
+					{
+						printf("Dan (node 0) wins!\n");
+						playerStats.winnerId = 0;
+					}
+					else if(Node1FireTime < Node0FireTime)
+					{
+						printf("Cronin (node 1) wins!\n");
+						playerStats.winnerId = 1;
+					}
+					else
+					{
+						printf("The match is a draw!\n");
+						playerStats.winnerId = -1;
+					}
+					playerStats.p0DrawTime = Node0FireTime;
+					playerStats.p1DrawTime = Node1FireTime;
+
+				}
+				printfflush();
+
+				if (roundOver) {
+					printf("db 0 %ld %i %i\n", playerStats.p0DrawTime, (playerStats.winnerId)? 0:1, (playerStats.winnerId == -1)? 1:0);
+					printfflush();
+					printf("db 1 %ld %i %i\n", playerStats.p1DrawTime, (playerStats.winnerId)? 1:0, (playerStats.winnerId == -1)? 1:0);
+					printfflush();
+				}
+			} else if (payload_in->messageType ==  STOP) {
+				printf("%s(%i) messed up, starting over!\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
+				printfflush();
+				readyReceived = FALSE;
+			}
+			else if (payload_in->messageType == ACK) {
+				printf("%s(%i) has sent an ACK\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
+				printfflush();
+				++numberOfACKsReceived;
+				if(payload_in->id)
+				{
+					ack_node_id_1 = 1;
+				}
+				else
+				{
+					ack_node_id_0 = 1;
+				}
+			}
+		}
+
 		//printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
-		printf("%s's Draw Time = %i ms\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
-		printfflush();
+		//printf("%s's Draw Time = %i ms\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
+		//printfflush();
 
 		return msg;
 	}
@@ -292,14 +425,12 @@ implementation {
 		int16_t y_pos_1g = (TOS_NODE_ID)? NODE1_Y_POS_1G : NODE0_Y_POS_1G;
 		bool local_busy = FALSE;
 
-		atomic 
-		{
+		atomic {
 			local_busy = busy;
 			busy = TRUE;
 		}
 
-		if (local_busy) 
-		{
+		if (local_busy) {
 			printf ("!!!SKIPPING VALUES!!!!\n" );
 			return (uint16_t)NULL;
 		}
@@ -324,11 +455,9 @@ implementation {
 		char c;
 		float f = toBePrinted;
 
-		if (f<0)
-		{
+		if (f<0){
 			c = '-'; f = -f;
-		} else 
-		{
+		} else {
 			c = ' ';
 		}
 
