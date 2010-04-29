@@ -21,6 +21,7 @@ implementation {
 	components new TimerMilliC() as CountT;
 	components new TimerMilliC() as FireT;
 	components new TimerMilliC() as DrawT;
+	components new TimerMilliC() as AcknowledgmentT;
 
 	QuickP.Boot -> MainC;
 	QuickP.AMSend -> AMSenderC;
@@ -31,6 +32,7 @@ implementation {
 	QuickP.CountDownTimer -> CountT;
 	QuickP.FireTimer -> FireT;
 	QuickP.DrawTimer -> DrawT;
+	QuickP.ACKTimer -> AcknowledgmentT;
 	QuickP.ReadX -> AccelXC;
 	QuickP.ReadY -> AccelYC;
 	QuickP.Leds -> LedsC;
