@@ -350,9 +350,9 @@ implementation {
 				printfflush();
 
 				if (roundOver) {
-					printf("db 0 %ld %i %i\n", playerStats.p0DrawTime, (playerStats.winnerId)? 0:1, (playerStats.winnerId == -1)? 1:0);
+					printf("$ 0 %ld %i %i\n", playerStats.p0DrawTime, (playerStats.winnerId)? 0:1, (playerStats.winnerId == -1)? 1:0);
 					printfflush();
-					printf("db 1 %ld %i %i\n", playerStats.p1DrawTime, (playerStats.winnerId)? 1:0, (playerStats.winnerId == -1)? 1:0);
+					printf("$ 1 %ld %i %i\n", playerStats.p1DrawTime, (playerStats.winnerId)? 1:0, (playerStats.winnerId == -1)? 1:0);
 					printfflush();
 				}
 			} else if (payload_in->messageType ==  STOP) {
