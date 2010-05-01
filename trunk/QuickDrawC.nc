@@ -21,6 +21,9 @@ implementation {
 	components new TimerMilliC() as FireT;
 	components new TimerMilliC() as DrawT;
 	components new TimerMilliC() as AcknowledgmentT;
+	components new TimerMilliC() as SystemT;
+
+	components RandomC;
 
 	QuickP.Boot -> MainC;
 	QuickP.AMSend -> AMSenderC;
@@ -32,8 +35,11 @@ implementation {
 	QuickP.FireTimer -> FireT;
 	QuickP.DrawTimer -> DrawT;
 	QuickP.ACKTimer -> AcknowledgmentT;
+	QuickP.SysTimer -> SystemT;
 	QuickP.ReadY -> AccelYC;
 	QuickP.Leds -> LedsC;
 	QuickP.Packet -> AMSenderC;
 	QuickP.Mts300Sounder -> SounderC;
+	QuickP.Random -> RandomC;
+	QuickP.ParameterInit -> RandomC;
 }

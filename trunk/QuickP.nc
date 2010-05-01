@@ -16,11 +16,15 @@ module QuickP {
 	uses interface Timer<TMilli> as FireTimer;
 	uses interface Timer<TMilli> as DrawTimer;
 	uses interface Timer<TMilli> as ACKTimer;
+	uses interface Timer<TMilli> as SysTimer;
 
 	uses interface Read<uint16_t> as ReadY;
 
 	uses interface Leds;
 	uses interface Mts300Sounder;
+
+	uses interface Random;
+	uses interface ParameterInit<uint16_t>;
 }
 implementation {
 	accel_t accelValues;
@@ -36,6 +40,7 @@ implementation {
 	uint8_t numberOfACKsReceived = 0;
 	int8_t ack_node_id_0;
 	int8_t ack_node_id_1;
+	uint32_t t2, t3;
 	uint16_t Node0FireTime = 0;
 	uint16_t Node1FireTime = 0;
 	Player_Stats playerStats;
@@ -52,6 +57,7 @@ implementation {
 
 	event void Boot.booted() {
 		call RadioControl.start();
+		call SysTimer.startPeriodic(1024);
 	}
 
 	event void RadioControl.startDone(error_t err) {
@@ -78,8 +84,6 @@ implementation {
 
 		startDone = TRUE;
 		call Mts300Sounder.beep(100);
-		//call CountDownTimer.startPeriodic(1024);
-		//call Leds.led1On();
 	}
 
 	event void CountDownTimer.fired() {
@@ -89,8 +93,13 @@ implementation {
 			call DrawTimer.startPeriodic(1);
 			call Leds.led2On();
 			checkFire = TRUE;
-		} else
+		} else if (countDown == 1) {
 			call Mts300Sounder.beep(100);
+			call CountDownTimer.startOneShot(t2);
+		} else if (countDown == 2) {
+			call Mts300Sounder.beep(100);
+			call CountDownTimer.startOneShot(t3);
+		}
 	}
 
 	event void FireTimer.fired() {
@@ -152,26 +161,29 @@ implementation {
 	}
 
 
+	event void SysTimer.fired() {}
+
 	event void ACKTimer.fired() {
 		quick_message *payload;
 
 		if(numberOfACKsReceived < 2)
 		{
-
+			//numberOfACKsReceived = 0;
 			payload = (quick_message *)call Packet.getPayload(&buf_all, sizeof(quick_message));
 			payload->id = TOS_NODE_ID;
 			payload->messageType = STOP;
 			post sendMessageAll();
 			readyReceived = FALSE;
-			if(ack_node_id_1 == -1)
+			if(ack_node_id_0 == -1)
 			{
 				printf ("Did NOT receive ACK from %s, resetting...\n", "Dan");
 			}
-			if (ack_node_id_0 == -1)
+			if (ack_node_id_1 == -1)
 			{
 				printf ("Did NOT receive ACK from %s, resetting...\n", "Cronin");
 			}
 			printfflush();
+			resetAll();
 		}
 		
 	}
@@ -256,7 +268,9 @@ implementation {
 				payload_out->id = TOS_NODE_ID;
 				payload_out->messageType = ACK;
 				post sendACK();
-				call CountDownTimer.startPeriodic(1024);
+				call CountDownTimer.startOneShot((uint32_t)payload_in->t1 * 1024);
+				t2 = payload_in->t2 * 1024;
+				t3 = payload_in->t3 * 1024;
 				call Leds.led1On();
 			} else if (payload_in->messageType == STOP) {
 				resetAll();
@@ -273,10 +287,17 @@ implementation {
 					Node1FireTime = 0;
 					payload_out->id = TOS_NODE_ID;
 					payload_out->messageType = START;
+					payload_out->t1 = (call Random.rand16()>>13) + 1;
+					payload_out->t2 = (call Random.rand16()>>13) + 1;
+					payload_out->t3 = (call Random.rand16()>>13) + 1;
+					printf("%u %u %u\n", payload_out->t1, payload_out->t2, payload_out->t3);
+					printfflush();
+
 					numberOfACKsReceived = 0;
-					call ACKTimer.startPeriodic(1536); // 1.5 secs to make sure both motes ACK the START packet
+					call ACKTimer.startOneShot(1536); // 1.5 secs to make sure both motes ACK the START packet
 					post sendMessageRef();
 					readyReceived = FALSE;
+					call ParameterInit.init((uint16_t)call SysTimer.getNow());
 				} else
 					readyReceived = TRUE;
 			} else if (payload_in->messageType == FIRE) {
