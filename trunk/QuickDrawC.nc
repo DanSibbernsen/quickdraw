@@ -10,7 +10,6 @@ implementation {
 	components new AMSenderC(MESSAGE);
 	components new AMReceiverC(MESSAGE);
 
-	components new AccelXC();
 	components new AccelYC();
 
 	components SounderC;
@@ -33,7 +32,6 @@ implementation {
 	QuickP.FireTimer -> FireT;
 	QuickP.DrawTimer -> DrawT;
 	QuickP.ACKTimer -> AcknowledgmentT;
-	QuickP.ReadX -> AccelXC;
 	QuickP.ReadY -> AccelYC;
 	QuickP.Leds -> LedsC;
 	QuickP.Packet -> AMSenderC;

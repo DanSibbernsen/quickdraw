@@ -17,7 +17,6 @@ module QuickP {
 	uses interface Timer<TMilli> as DrawTimer;
 	uses interface Timer<TMilli> as ACKTimer;
 
-	uses interface Read<uint16_t> as ReadX;
 	uses interface Read<uint16_t> as ReadY;
 
 	uses interface Leds;
@@ -25,7 +24,7 @@ module QuickP {
 }
 implementation {
 	accel_t accelValues;
-	message_t bufx, bufy, bufd, buf_ref, buf_ack;
+	message_t buf_all, buf_base, buf_draw, buf_ref, buf_ack;
 	uint8_t countDown = 0;
 	uint16_t draw_time = 0;
 	bool startDone = FALSE;
@@ -41,13 +40,11 @@ implementation {
 	uint16_t Node1FireTime = 0;
 	Player_Stats playerStats;
 
-	task void processXValues();
 	task void processYValues();
 	task void ReportTime();
 	task void sendDrawTime();
-	task void sendMessageY();
+	task void sendMessageBase();
 	task void sendACK();
-	uint16_t convertX(uint16_t data);
 	uint16_t convertY(uint16_t data);
 	void printfFloat(float toBePrinter);
 	void reset();
@@ -62,9 +59,6 @@ implementation {
 	}
 
 	task void ReadSensors() {
-		//if (call ReadX.read() != SUCCESS)
-			//post ReadSensors();
-		
 		if (call ReadY.read() != SUCCESS)
 			post ReadSensors();
 	}
@@ -77,10 +71,10 @@ implementation {
 	event void StartTimer.fired() {
 		quick_message *payload;
 
-		payload = (quick_message *)call Packet.getPayload(&bufy, sizeof(quick_message));
+		payload = (quick_message *)call Packet.getPayload(&buf_base, sizeof(quick_message));
 		payload->id = TOS_NODE_ID;
 		payload->messageType = READY;
-		post sendMessageY();
+		post sendMessageBase();
 
 		startDone = TRUE;
 		call Mts300Sounder.beep(100);
@@ -113,19 +107,6 @@ implementation {
 		draw_time ++;
 	}
 
-	event void ReadX.readDone(error_t result, uint16_t val) {
-		//call Leds.led0Toggle();
-		if (result != SUCCESS) {
-			post ReadSensors();
-			return;
-		}
-
-		accelValues.x = val;
-		//printf ("X == %i\n", val);
-		//printfflush();
-		post processXValues();
-	}
-
 	event void ReadY.readDone(error_t result, uint16_t val) {
 		//call Leds.led1Toggle();
 		if (result != SUCCESS) {
@@ -141,7 +122,7 @@ implementation {
 
 	task void ReportTime() {
 		quick_message *payload;
-		payload = (quick_message *)call Packet.getPayload(&bufd, sizeof(quick_message));
+		payload = (quick_message *)call Packet.getPayload(&buf_draw, sizeof(quick_message));
 		payload->time = draw_time;
 		payload->id = TOS_NODE_ID;
 		payload->messageType = FIRE;
@@ -150,19 +131,13 @@ implementation {
 	}
 
 	task void sendDrawTime() {
-		if (call AMSend.send(2, &bufd, sizeof(demo_message_t)) != SUCCESS)
+		if (call AMSend.send(2, &buf_draw, sizeof(demo_message_t)) != SUCCESS)
 			post sendDrawTime();
 	}
 
-	task void sendMessageX() {
-		//AM_BROADCAST_ADDR
-		if (call AMSend.send(1, &bufx, sizeof(demo_message_t)) != SUCCESS)
-			post sendMessageX();
-	}
-
-	task void sendMessageY() {
-		if (call AMSend.send(2, &bufy, sizeof(quick_message)) != SUCCESS)
-			post sendMessageY();
+	task void sendMessageBase() {
+		if (call AMSend.send(2, &buf_base, sizeof(quick_message)) != SUCCESS)
+			post sendMessageBase();
 	}
 
 	task void sendACK()
@@ -172,7 +147,7 @@ implementation {
 	}
 
 	task void sendMessageAll() {
-		if (call AMSend.send(AM_BROADCAST_ADDR, &bufx, sizeof(quick_message)) != SUCCESS)
+		if (call AMSend.send(AM_BROADCAST_ADDR, &buf_all, sizeof(quick_message)) != SUCCESS)
 			post sendMessageAll();
 	}
 
@@ -183,7 +158,7 @@ implementation {
 		if(numberOfACKsReceived < 2)
 		{
 
-			payload = (quick_message *)call Packet.getPayload(&bufx, sizeof(quick_message));
+			payload = (quick_message *)call Packet.getPayload(&buf_all, sizeof(quick_message));
 			payload->id = TOS_NODE_ID;
 			payload->messageType = STOP;
 			post sendMessageAll();
@@ -206,24 +181,6 @@ implementation {
 			post sendMessageRef();
 	}
 
-	task void processXValues() {
-		uint16_t x_angle;
-		/*demo_message_t *payload;
-
-		payload = (demo_message_t *)call Packet.getPayload(&bufx, sizeof(demo_message_t));
-		*/
-		x_angle = convertX(accelValues.x);
-		if (x_angle == (uint16_t)NULL)
-			return;
-
-		/*payload->lastReading = x_angle;
-
-		payload->axis = TRUE;
-
-		post sendMessageX();
-		*/
-	}
-
 	task void processYValues() {
 		uint16_t y_angle;
 		
@@ -241,7 +198,7 @@ implementation {
 		} else if (!checkFire && !fireDone) {
 			quick_message *payload;
 			if (startDone) {
-				payload = (quick_message *)call Packet.getPayload(&bufx, sizeof(quick_message));
+				payload = (quick_message *)call Packet.getPayload(&buf_all, sizeof(quick_message));
 				payload->id = TOS_NODE_ID;
 				payload->messageType = STOP;
 				post sendMessageAll();
@@ -254,10 +211,17 @@ implementation {
 
 	event void AMSend.sendDone(message_t *msg, error_t err) {
 		if(err != SUCCESS) {
-			//post sendMessageX();
-			post sendMessageY();
-		} //else
-			//call Leds.led2Toggle();
+			if(msg == &buf_all)
+				post sendMessageAll();
+			else if(msg == &buf_base)
+				post sendMessageBase();
+			else if(msg == &buf_draw)
+				post sendDrawTime();
+			else if(msg == &buf_ref)
+				post sendMessageRef();
+			else if(msg == &buf_ack)
+				post sendACK();
+		}
 	}
 
 	void reset() {
@@ -375,48 +339,10 @@ implementation {
 			}
 		}
 
-		//printf("Received: %c == %i\n", (demo_payload->axis)? 'X':'Y', demo_payload->lastReading);
-		//printf("%s's Draw Time = %i ms\n", (demo_payload->axis)? "Dan": "Cronin", demo_payload->lastReading);
-		//printfflush();
-
 		return msg;
 	}
 
 	event void RadioControl.stopDone(error_t err) {}
-
-	uint16_t convertX(uint16_t data) {
-		float scale_factor, reading;
-		int16_t accel_data = data;
-		int16_t x_neg_1g = (TOS_NODE_ID)? NODE1_X_NEG_1G : NODE0_X_NEG_1G;
-		int16_t x_pos_1g = (TOS_NODE_ID)? NODE1_X_POS_1G : NODE0_X_POS_1G;
-		bool local_busy = FALSE;
-
-		atomic {
-			local_busy = busy;
-			busy = TRUE;
-		}
-
-		if (local_busy) {
-			printf ("!!!SKIPPING VALUES!!!!\n" );
-			return (uint16_t)NULL;
-		}
-
-		scale_factor = ((float)(x_pos_1g - x_neg_1g) / 2.0);
-
-		// If (x_pos_1g - accel_data) is a negative number, then reading > 1.0
-		// then asin() returns an error.
-		reading = 1.0 - fabs((float)(x_pos_1g - accel_data) / scale_factor);
-
-		if ( reading < -1.0 || reading > 1.0) {
-			busy = FALSE;
-			return (uint16_t)NULL;
-		}
-
-		reading = asin(reading) * (180.0 / M_PI);// 57.29577951; // (180 / M_PI) = Degrees
-
-		busy = FALSE;
-		return (uint16_t)fabs(reading);
-	}
 
 	uint16_t convertY(uint16_t data) {
 		float scale_factor, reading;
