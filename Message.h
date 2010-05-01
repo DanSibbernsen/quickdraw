@@ -29,6 +29,9 @@ typedef nx_struct message
 	nx_uint8_t id;
 	nx_uint8_t messageType;
 	nx_uint16_t time;
+	nx_uint8_t t1;
+	nx_uint8_t t2;
+	nx_uint8_t t3;
 } quick_message;
 
 typedef nx_struct playerStats
