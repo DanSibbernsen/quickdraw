@@ -168,7 +168,6 @@ implementation {
 
 		if(numberOfACKsReceived < 2)
 		{
-			//numberOfACKsReceived = 0;
 			payload = (quick_message *)call Packet.getPayload(&buf_all, sizeof(quick_message));
 			payload->id = TOS_NODE_ID;
 			payload->messageType = STOP;
@@ -268,9 +267,9 @@ implementation {
 				payload_out->id = TOS_NODE_ID;
 				payload_out->messageType = ACK;
 				post sendACK();
-				call CountDownTimer.startOneShot((uint32_t)payload_in->t1 * 1024);
-				t2 = payload_in->t2 * 1024;
-				t3 = payload_in->t3 * 1024;
+				call CountDownTimer.startOneShot((uint32_t)payload_in->t1 * 1231);
+				t2 = payload_in->t2 * 1231;
+				t3 = payload_in->t3 * 1231;
 				call Leds.led1On();
 			} else if (payload_in->messageType == STOP) {
 				resetAll();
@@ -287,9 +286,9 @@ implementation {
 					Node1FireTime = 0;
 					payload_out->id = TOS_NODE_ID;
 					payload_out->messageType = START;
-					payload_out->t1 = (call Random.rand16()>>13) + 1;
-					payload_out->t2 = (call Random.rand16()>>13) + 1;
-					payload_out->t3 = (call Random.rand16()>>13) + 1;
+					payload_out->t1 = (call Random.rand16()>>14) + 1;
+					payload_out->t2 = (call Random.rand16()>>14) + 1;
+					payload_out->t3 = (call Random.rand16()>>14) + 1;
 					printf("%u %u %u\n", payload_out->t1, payload_out->t2, payload_out->t3);
 					printfflush();
 
