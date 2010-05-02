@@ -289,8 +289,6 @@ implementation {
 					payload_out->t1 = (call Random.rand16()>>14) + 1;
 					payload_out->t2 = (call Random.rand16()>>14) + 1;
 					payload_out->t3 = (call Random.rand16()>>14) + 1;
-					printf("%u %u %u\n", payload_out->t1, payload_out->t2, payload_out->t3);
-					printfflush();
 
 					numberOfACKsReceived = 0;
 					call ACKTimer.startOneShot(1536); // 1.5 secs to make sure both motes ACK the START packet
