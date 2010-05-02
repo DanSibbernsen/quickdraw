@@ -117,15 +117,12 @@ implementation {
 	}
 
 	event void ReadY.readDone(error_t result, uint16_t val) {
-		//call Leds.led1Toggle();
 		if (result != SUCCESS) {
 			post ReadSensors();
 			return;
 		}
 
 		accelValues.y = val;
-		//printf ("Y == %i\n", val);
-		//printfflush();
 		post processYValues();
 	}
 
@@ -375,7 +372,6 @@ implementation {
 		}
 
 		if (local_busy) {
-			printf ("!!!SKIPPING VALUES!!!!\n" );
 			return (uint16_t)NULL;
 		}
 
