@@ -51,7 +51,7 @@ implementation {
 	task void sendMessageBase();
 	task void sendACK();
 	uint16_t convertY(uint16_t data);
-	void printfFloat(float toBePrinter);
+
 	void reset();
 	void resetAll();
 
@@ -395,27 +395,4 @@ implementation {
 		busy = FALSE;
 		return (uint16_t)fabs(reading);
 	}
-
-	void printfFloat(float toBePrinted) {
-		uint32_t fi, f0, f1, f2;
-		char c;
-		float f = toBePrinted;
-
-		if (f<0){
-			c = '-'; f = -f;
-		} else {
-			c = ' ';
-		}
-
-		// integer portion.
-		fi = (uint32_t) f;
-
-		// decimal portion...get index for up to 3 decimal places.
-		f = f - ((float) fi);
-		f0 = f*10;   f0 %= 10;
-		f1 = f*100;  f1 %= 10;
-		f2 = f*1000; f2 %= 10;
-		printf("%c%ld.%d%d%d\n", c, fi, (uint8_t) f0, (uint8_t) f1, (uint8_t) f2);
-	}
-
 }
