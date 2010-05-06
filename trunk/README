@@ -1,5 +1,24 @@
 CSE467S Project QuickDraw
 
+
+Playing QuickDraw
+Note that the calibration values are specific to the sensor boards, so whichever mote has the A2-3 board has to have the TOS_MOTE_ID 0, and board A1-2 has to have TOS_MOTE_ID 1.  The accelerometer readings are dependent on these calibrations.
+
+Steps to play the game:
+1) Put control mote onto programming board and plug programmming board into computer
+2) Start up the GUI (see directions below)
+3) Turn on both gun-motes (if not already done)
+4) Hold the guns pointing downward for 1 second, waiting for an initial 'beep' that symbolizes you are in the start position.  If a beep does not happen, adjust the angle.
+5) A "START" message will appear on the screen, recognizing that both gun-motes have checked in with the system and have received a START command.
+6) Hold the motes in the same downward position for 3 additional beeps.
+7) On the last beep, angle the mote from the downard position to a 90 degree angle (essentially, pointing at your opponent) and hold for .5 seconds
+8) A beep will signify a fired packet.
+9) The GUI will report the winner as well as the times (in milliseconds) of each mote.
+10) To restart the game, merely go back to step 4!
+
+In order to see the results of the game, you must start the GUI (see directions below).
+
+
 GUI
 The GUI is implemented in Java, using TinyOS's PrintfClient and Apache Derby database.
 
