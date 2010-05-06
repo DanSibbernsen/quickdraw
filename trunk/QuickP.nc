@@ -68,17 +68,18 @@ implementation {
 	event void RadioControl.startDone(error_t err) {
 		call AccelTimer.startPeriodic(TIMER_PERIOD);	/* Start the timer for sampling the accelerometer */
 	}
-
+	/* read the accelerometer sensors*/
 	task void ReadSensors() {
 		if (call ReadY.read() != SUCCESS)
 			post ReadSensors();
 	}
-
+	
+	/* posts the reading of the accelerometer sensors*/
 	event void AccelTimer.fired() {
 		post ReadSensors();
 	}
 
-
+	/* Gun-mote Sends a READY message to the control mote, sets off beep to let user know they're about to start*/
 	event void StartTimer.fired() {
 		quick_message *payload;
 
@@ -91,6 +92,12 @@ implementation {
 		call Mts300Sounder.beep(100);
 	}
 
+	/* 
+	   countDown is incremented for # of intervals we've passed through
+	   if countDown < 3: begin CountDownTimer on another random interval for the next beep
+	   if countDown == 3, make a long beep, and enter the "fire" sequence 
+		(i.e. when the person moves from gun pointed downward to gun pointing at other person)   
+	*/
 	event void CountDownTimer.fired() {
 		if ( ++countDown >= 3 ) {
 			call Mts300Sounder.beep(500);
@@ -106,21 +113,35 @@ implementation {
 			call CountDownTimer.startOneShot(t3);
 		}
 	}
-
+	/*
+		Condition: we've been in the correct 'fire' position for .5 seconds, 
+		action: send the time to the control-mote
+			make a long beep
+			turn led0 on.
+			reset all variables
+	*/
 	event void FireTimer.fired() {
-		call Mts300Sounder.beep(1000);
 		call DrawTimer.stop();
+		call Mts300Sounder.beep(1000);
 		call Leds.led0On();
 		checkFire = FALSE;
 		startDone = FALSE;
 		fireDone = TRUE;
 		post ReportTime();
 	}
-
+	/*
+		Counter for how long we take (in milliseconds) between the end of the start sequence and the fire sequence.
+		Fired off 1024 times in a second.
+	*/
 	event void DrawTimer.fired() {
 		draw_time ++;
 	}
 
+	/*
+		Event for after the accelerometer reading is done.
+		Stores off the accelerometer value inside accelValues.y
+		calls task to perform post-processing on that value.
+	*/
 	event void ReadY.readDone(error_t result, uint16_t val) {
 		if (result != SUCCESS) {
 			post ReadSensors();
@@ -131,6 +152,14 @@ implementation {
 		post processYValues();
 	}
 
+	/*
+		Fills the payload with draw time information:
+			1. payload->time: time it took for mote to get to fire position
+			2. payload->id: node id of the mote
+			3. payload->messageType: fire message, meaning this is our 'fire' packet
+		Posts the task to the packet to the control-mote
+	*/
+
 	task void ReportTime() {
 		quick_message *payload;
 		payload = (quick_message *)call Packet.getPayload(&buf_draw, sizeof(quick_message));
@@ -140,23 +169,40 @@ implementation {
 		draw_time = 0;
 		post sendDrawTime();
 	}
+	/*
+		sends the draw time from the gun-mote to the control mote
+		loops until successful.
+	*/
 
 	task void sendDrawTime() {
-		if (call AMSend.send(2, &buf_draw, sizeof(demo_message_t)) != SUCCESS)
+		if (call AMSend.send(2, &buf_draw, sizeof(quick_message)) != SUCCESS)
 			post sendDrawTime();
 	}
+
+	/*
+		sends the READY message from a gun-mote to the control mote
+		loops until successful.
+	*/
 
 	task void sendMessageBase() {
 		if (call AMSend.send(2, &buf_base, sizeof(quick_message)) != SUCCESS)
 			post sendMessageBase();
 	}
 
+	/*
+		sends the READY message from a gun-mote to the control mote
+		loops until successful.
+	*/
 	task void sendACK()
 	{
 		if (call AMSend.send(2, &buf_ack, sizeof(quick_message)) != SUCCESS)
 			post sendACK();
 	}
 
+	/*
+		broadcasts a START message from the control mote to the gun-motes
+		loops until successful.
+	*/
 	task void sendMessageAll() {
 		if (call AMSend.send(AM_BROADCAST_ADDR, &buf_all, sizeof(quick_message)) != SUCCESS)
 			post sendMessageAll();
@@ -165,6 +211,10 @@ implementation {
 
 	event void SysTimer.fired() {}
 
+	/*
+		Makes sure both gun-motes have checked in after receiving a READY packet.
+		Run only from the control-mote.
+	*/
 	event void ACKTimer.fired() {
 		quick_message *payload;
 
@@ -188,12 +238,22 @@ implementation {
 		}
 		
 	}
-
+	/*
+		Sends out the random time intervals between each beep to the gun-motes.
+	*/
 	task void sendMessageRef() {
 		if (call AMSend.send(AM_BROADCAST_ADDR, &buf_ref, sizeof(quick_message)) != SUCCESS)
 			post sendMessageRef();
 	}
 
+	/*
+		applies logic to the accelerometer readings we've taken.
+		If the mote isn't in the countdown sequence, we wait until the angle is between 65 and 90 degrees
+			If it is, we start a 1-second countdown.
+		If the mote has initiated the countdown, we confirm that the mote doesn't move
+			If the gun-mote moves, it sends off a STOP message to the other 2 motes
+		If the countdown sequence is finished, we check to see if we are in 'firing' position ( 0 <= angle <= 15)
+	*/
 	task void processYValues() {
 		uint16_t y_angle;
 		
@@ -222,6 +282,10 @@ implementation {
 		}
 	}
 
+	/*
+		If we fail in our send, repost the message.
+	*/
+
 	event void AMSend.sendDone(message_t *msg, error_t err) {
 		if(err != SUCCESS) {
 			if(msg == &buf_all)
@@ -237,6 +301,9 @@ implementation {
 		}
 	}
 
+	/*
+		resets all variables used to progress through the states of the game.
+	*/
 	void reset() {
 		call StartTimer.stop();
 		call FireTimer.stop();
@@ -248,6 +315,9 @@ implementation {
 		roundOver = FALSE;
 	}
 
+	/*
+		turns off all the LEDs and resets all variables.
+	*/
 	void resetAll() {
 		call Leds.led0Off();
 		call Leds.led1Off();
@@ -255,6 +325,20 @@ implementation {
 		reset();
 	}
 
+
+	/*
+		Message processing for each of the motes.  Determines functionality by the TOS_NODE_ID.
+		2 is always the control-mote, 0 and 1 are the gun-motes
+		Message types:
+			START: only received by gun-motes.  Pulls out 3 random time intervals
+				Turns on 1st LED.
+			STOP: only received by gun-motes.  Resets all variables, going back to initial state.
+			READY: only received by control-mote.  Tells us which gun-mote is ready, we then wait for the other one.
+					If both motes have checked in, we send out START command to gun-motes with randomized variables.
+						And start ACKTimer to make sure both motes are still there.
+			FIRE: Received only by control-mote.  Stores off timing information and determines winner.
+					Transmits player stats to the database via printf() with '$' as the first symbol
+	*/
 	event message_t * Receive.receive(message_t *msg, void *payload, uint8_t len) { 
 		quick_message *payload_out;
 		quick_message *payload_in = (quick_message *)payload;
@@ -364,6 +448,10 @@ implementation {
 
 	event void RadioControl.stopDone(error_t err) {}
 
+	/*
+		locks on a critical section b/c this function is called so often (every ~.02seconds, or 21 hertz)
+		then translates the raw accelerometer values into angles that we can use.
+	*/
 	uint16_t convertY(uint16_t data) {
 		float scale_factor, reading;
 		int16_t accel_data = data;

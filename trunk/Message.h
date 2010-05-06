@@ -18,27 +18,21 @@ enum
 	TIMER_PERIOD = 21
 };
 
-typedef nx_struct demo_message
-{
-	nx_uint16_t lastReading;
-	nx_bool axis;
-} demo_message_t;
-
 typedef nx_struct message
 {
-	nx_uint8_t id;
-	nx_uint8_t messageType;
-	nx_uint16_t time;
-	nx_uint8_t t1;
-	nx_uint8_t t2;
-	nx_uint8_t t3;
+	nx_uint8_t id; /* id of the mote we're on */
+	nx_uint8_t messageType;/* maps to message_type enum */
+	nx_uint16_t time; /* time the mote took to fire*/
+	nx_uint8_t t1; /* 1st random interval*/
+	nx_uint8_t t2;/* 2nd random interval*/
+	nx_uint8_t t3;/* 3rd random interval*/
 } quick_message;
 
 typedef nx_struct playerStats
 {
-	nx_int8_t  winnerId;
-	nx_uint32_t p0DrawTime;
-	nx_uint32_t p1DrawTime;
+	nx_int8_t  winnerId; /* node id of the winner */
+	nx_uint32_t p0DrawTime; /* node 0 draw time */
+	nx_uint32_t p1DrawTime; /* node 1 draw time*/
 } Player_Stats;
 
 

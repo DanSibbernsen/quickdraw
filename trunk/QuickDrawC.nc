@@ -3,25 +3,25 @@
 configuration QuickDrawC {
 }
 implementation {
-	components MainC;
-	components QuickP;
+	components MainC; /* Boot sequence for QuickDraw */
+	components QuickP; /* Defined in QuickP.nc */
 
 	components ActiveMessageC;
-	components new AMSenderC(MESSAGE);
-	components new AMReceiverC(MESSAGE);
+	components new AMSenderC(MESSAGE); /* Sender of packets */
+	components new AMReceiverC(MESSAGE); /* Receiver of packets */
 
-	components new AccelYC();
+	components new AccelYC(); /* Accelerometer sensor on the motes */
 
-	components SounderC;
-	components LedsC;
+	components SounderC; /* controls the sound on the motes */
+	components LedsC; /* controls LEDs on the motes */
 
-	components new TimerMilliC() as AccelT;
-	components new TimerMilliC() as StartT;
-	components new TimerMilliC() as CountT;
-	components new TimerMilliC() as FireT;
-	components new TimerMilliC() as DrawT;
-	components new TimerMilliC() as AcknowledgmentT;
-	components new TimerMilliC() as SystemT;
+	components new TimerMilliC() as AccelT; /* Accelerometer Timer */
+	components new TimerMilliC() as StartT; /* Timer to mark the start */
+	components new TimerMilliC() as CountT; /* Timer to mark the countdown */
+	components new TimerMilliC() as FireT; /* Timer to mark the Fire */
+	components new TimerMilliC() as DrawT; /* Timer to mark the Draw Time*/
+	components new TimerMilliC() as AcknowledgmentT; /* Timer used for Acknowledgments */
+	components new TimerMilliC() as SystemT; /* Used for random number generation */
 
 	components RandomC;
 
