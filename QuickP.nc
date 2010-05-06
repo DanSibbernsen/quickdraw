@@ -5,63 +5,68 @@
 module QuickP {
 	uses interface Boot;
 
+	/* Interaces for sending and receving messages */
 	uses interface AMSend;
 	uses interface Receive;
 	uses interface Packet;
 	uses interface SplitControl as RadioControl;
 
-	uses interface Timer<TMilli> as AccelTimer;
-	uses interface Timer<TMilli> as StartTimer;
-	uses interface Timer<TMilli> as CountDownTimer;
-	uses interface Timer<TMilli> as FireTimer;
-	uses interface Timer<TMilli> as DrawTimer;
-	uses interface Timer<TMilli> as ACKTimer;
-	uses interface Timer<TMilli> as SysTimer;
+	/* Timers */
+	uses interface Timer<TMilli> as AccelTimer;		/* Timer to sample the accelerometer ~ 54Hz */
+	uses interface Timer<TMilli> as StartTimer;		/* Timer to ensure the mote is in ready position for 1 second */
+	uses interface Timer<TMilli> as CountDownTimer;		/* Timer for the count down */
+	uses interface Timer<TMilli> as FireTimer;		/* Timer to ensure the mote is in fire position for 0.5 seconds */
+	uses interface Timer<TMilli> as DrawTimer;		/* Timer for the draw time */
+	uses interface Timer<TMilli> as ACKTimer;		/* Timer to ensure that ACK has been received from both motes in 1.5 seconds */
+	uses interface Timer<TMilli> as SysTimer;		/* Timer used as seed for the random number generator */
 
+	/* Interface for reading accelerometer values */
 	uses interface Read<uint16_t> as ReadY;
 
+	/* Interfaces for LEDs and speaker */
 	uses interface Leds;
 	uses interface Mts300Sounder;
 
+	/* Interfaces for the random number generator */
 	uses interface Random;
 	uses interface ParameterInit<uint16_t>;
 }
 implementation {
-	accel_t accelValues;
-	message_t buf_all, buf_base, buf_draw, buf_ref, buf_ack;
-	uint8_t countDown = 0;
-	uint16_t draw_time = 0;
-	bool startDone = FALSE;
-	bool fireDone = FALSE;
-	bool checkFire = FALSE;
-	bool busy = FALSE;
-	bool readyReceived = FALSE;
-	bool roundOver = FALSE;
-	uint8_t numberOfACKsReceived = 0;
-	int8_t ack_node_id_0;
-	int8_t ack_node_id_1;
-	uint32_t t2, t3;
-	uint16_t Node0FireTime = 0;
-	uint16_t Node1FireTime = 0;
-	Player_Stats playerStats;
+	accel_t accelValues;					/* Accelerator values */
+	message_t buf_all, buf_base, buf_draw, buf_ref, buf_ack;/* Message buffers */
+	uint8_t countDown = 0; 					/* Number of countdown beeps */
+	uint16_t draw_time = 0;					/* Draw time */
+	bool startDone = FALSE;					/* Mote is in ready position */
+	bool fireDone = FALSE;					/* Mote has fired */
+	bool checkFire = FALSE;					/* Wait for fire */
+	bool busy = FALSE;					/* Read accelerometer value */
+	bool readyReceived = FALSE;				/* Receive READY from both motes */
+	bool roundOver = FALSE;					/* Receive FIRE from both motes */
+	uint8_t numberOfACKsReceived = 0;			/* Receive ACK from both motes */
+	int8_t ack_node_id_0;					/* ACK received from mote 0 */
+	int8_t ack_node_id_1;					/* ACK received from mote 1 */
+	uint32_t t2, t3;					/* Random countdown values */
+	uint16_t Node0FireTime = 0;				/* Received draw time for mote 0 */
+	uint16_t Node1FireTime = 0;				/* Received draw time for mote 1 */
+	Player_Stats playerStats;				/* Save player statistics */
 
-	task void processYValues();
-	task void ReportTime();
-	task void sendDrawTime();
-	task void sendMessageBase();
-	task void sendACK();
-	uint16_t convertY(uint16_t data);
+	task void processYValues();				/* Process raw accelerometer values */
+	task void ReportTime();					/* Prepare FIRE packet to be sent */
+	task void sendDrawTime();				/* Send the FIRE packet */
+	task void sendMessageBase();				/* Send a message to the base station */
+	task void sendACK();					/* Send ACK for the START packet */
+	uint16_t convertY(uint16_t data);			/* Convert raw acceleromter values */
 
-	void reset();
-	void resetAll();
+	void reset();						/* Reset all variables and flags */
+	void resetAll();					/* Reset all LEDs */
 
 	event void Boot.booted() {
-		call RadioControl.start();
-		call SysTimer.startPeriodic(1024);
+		call RadioControl.start();			/* Start the radio */
+		call SysTimer.startPeriodic(1024);		/* Start the 1 second seed timer for random number generation */
 	}
 
 	event void RadioControl.startDone(error_t err) {
-		call AccelTimer.startPeriodic(TIMER_PERIOD);
+		call AccelTimer.startPeriodic(TIMER_PERIOD);	/* Start the timer for sampling the accelerometer */
 	}
 
 	task void ReadSensors() {
