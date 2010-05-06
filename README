@@ -1,0 +1,21 @@
+CSE467S Project QuickDraw
+
+GUI
+The GUI is implemented in Java, using TinyOS's PrintfClient and Apache Derby database.
+
+Dependencies:
+	TinyOS 2.1.0, /opt/tinyos-2.1.0/support/sdk/java/tinyos.jar compiled and in the CLASSPATH
+	JavaDB implementation of Apache Derby, found at http://developers.sun.com/javadb/downloads/index.jsp
+	derby.jar from the above installation located in /usr/share/javadb/lib/derby.jar and in the CLASSPATH
+	CLASSPATH must also contain the current directory '.'
+
+Compiling:
+	QuickD.java must be compiled before PrintfClient.java:
+	javac QuickD.java
+	javac PrintfClient.java
+
+Once compiled the GUI must be started from the directory containing the class files, PrintfClient is the main class.
+PrintfClient is started with the same arguments as the original PrintfClient supplied by TinyOS:
+	java PrintfClient -comm serial@<port>:micaz
+
+The first time the GUI is started it takes a few seconds to create a new embedded database and table to store the data.
