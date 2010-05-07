@@ -262,12 +262,18 @@ implementation {
 		if (y_angle == (uint16_t)NULL)
 			return;
 
+		/* If the mote is in the READY position start the StartTimer */
 		if (y_angle >= 65 && y_angle <= 90) {
+			/* If the StartTimer is not already running and the 1 second interval has not passed restart the StartTimer */
 			if ( ! call StartTimer.isRunning() && !startDone )
 				call StartTimer.startOneShot(1024);
+		/* If the countdown sequence is done and the mote is in the FIRE position start the FireTimer */
 		} else if ((checkFire || fireDone) && y_angle >=0 && y_angle <= 15) {
+			/* If the FireTimer is not running and has not completed it's period restart it */
 			if (!call FireTimer.isRunning() && !fireDone)
 				call FireTimer.startOneShot(512);
+		/* If the mote is not in READY or FIRE position and we haven't completed the FireTimer send STOP to the other mote and
+			the base station and reset all timers, variables and flags */
 		} else if (!checkFire && !fireDone) {
 			quick_message *payload;
 			if (startDone) {
@@ -277,13 +283,15 @@ implementation {
 				post sendMessageAll();
 			}
 			resetAll();
+		/* Otherwise if the countdown has completed but not the FireTimer reset everything but the LEDs,
+			this ensures that the LEDs stay lit during the drawing state */
 		} else if (!checkFire) {
 			reset();
 		}
 	}
 
 	/*
-		If we fail in our send, repost the message.
+		If we fail in our send, repost the correct message.
 	*/
 
 	event void AMSend.sendDone(message_t *msg, error_t err) {
@@ -347,7 +355,9 @@ implementation {
 
 		call Leds.led2Toggle();
 
+		/* Check if the current mote is a gun-mote or the base station */
 		if (TOS_NODE_ID < 2) {
+			/* Gun-mote section to respond to a START packet */
 			if (payload_in->messageType == START) {
 				payload_out = (quick_message *)call Packet.getPayload(&buf_ack, sizeof(quick_message));
 				payload_out->id = TOS_NODE_ID;
@@ -357,14 +367,18 @@ implementation {
 				t2 = payload_in->t2 * 1231;
 				t3 = payload_in->t3 * 1231;
 				call Leds.led1On();
+			/* Respond to a STOP packet */
 			} else if (payload_in->messageType == STOP) {
 				resetAll();
 			}
+		/* Base station section */
 		} else {
+			/* Respond to a READY packet */
 			if (payload_in->messageType == READY) {
 				printf ("Received Ready from %s(%i)\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
 				printfflush();
 
+				/* Check if this is the second READY packet */
 				if (readyReceived) {
 					ack_node_id_0 = -1;
 					ack_node_id_1 = -1;
@@ -383,7 +397,9 @@ implementation {
 					call ParameterInit.init((uint16_t)call SysTimer.getNow());
 				} else
 					readyReceived = TRUE;
+			/* Respond to a FIRE packet */
 			} else if (payload_in->messageType == FIRE) {
+				/* Check which motes sent the FIRE packet and store their draw time */
 				if(payload_in->id == 0)
 				{
 					Node0FireTime = payload_in->time;
@@ -393,6 +409,7 @@ implementation {
 					Node1FireTime = payload_in->time;
 				}
 				printf("%s's Draw Time = %i ms\n", (payload_in->id)? "Cronin": "Dan", payload_in->time);
+				/* When both motes have sent a FIRE packet determine the winner */
 				if(Node1FireTime != 0 && Node0FireTime != 0)
 				{
 					roundOver = TRUE;
@@ -417,17 +434,20 @@ implementation {
 				}
 				printfflush();
 
+				/* Special message to be inserted into the database */
 				if (roundOver) {
 					printf("$ 0 %ld %i %i\n", playerStats.p0DrawTime, (playerStats.winnerId)? 0:1, (playerStats.winnerId == -1)? 1:0);
 					printfflush();
 					printf("$ 1 %ld %i %i\n", playerStats.p1DrawTime, (playerStats.winnerId)? 1:0, (playerStats.winnerId == -1)? 1:0);
 					printfflush();
 				}
+			/* Respond to a STOP packet */
 			} else if (payload_in->messageType ==  STOP) {
 				printf("%s(%i) messed up, starting over!\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
 				printfflush();
 				readyReceived = FALSE;
 			}
+			/* Respond to an ACK packet */
 			else if (payload_in->messageType == ACK) {
 				printf("%s(%i) has sent an ACK\n", (payload_in->id)? "Cronin": "Dan", payload_in->id);
 				printfflush();
@@ -455,6 +475,7 @@ implementation {
 	uint16_t convertY(uint16_t data) {
 		float scale_factor, reading;
 		int16_t accel_data = data;
+		/* Obtain the calibration values for the current mote */
 		int16_t y_neg_1g = (TOS_NODE_ID)? NODE1_Y_NEG_1G : NODE0_Y_NEG_1G;
 		int16_t y_pos_1g = (TOS_NODE_ID)? NODE1_Y_POS_1G : NODE0_Y_POS_1G;
 		bool local_busy = FALSE;
@@ -468,8 +489,10 @@ implementation {
 			return (uint16_t)NULL;
 		}
 
+		/* Compute the scale factor */
 		scale_factor = ((float)(y_pos_1g - y_neg_1g) / 2.0);
 
+		/* Convert the raw data into g units */
 		reading = 1.0 - fabs((float)(y_pos_1g - accel_data) / scale_factor);
 
 		if ( reading < -1.0 || reading > 1.0) {
@@ -477,6 +500,7 @@ implementation {
 			return (uint16_t)NULL;
 		}
 
+		/* Compute the angle of the mote with respect to gravity in degrees */
 		reading = asin(reading) * (180.0 / M_PI);//57.29577951;
 
 		busy = FALSE;
