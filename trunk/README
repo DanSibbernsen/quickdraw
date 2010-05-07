@@ -2,7 +2,13 @@ CSE467S Project QuickDraw
 
 
 Playing QuickDraw
-Note that the calibration values are specific to the sensor boards, so whichever mote has the A2-3 board has to have the TOS_MOTE_ID 0, and board A1-2 has to have TOS_MOTE_ID 1.  The accelerometer readings are dependent on these calibrations.
+Note that the calibration values are specific to the sensor boards, so whichever mote has the A2-3 board has to have the TOS_MOTE_ID 0,
+and board A1-2 has to have TOS_MOTE_ID 1.  The accelerometer readings are dependent on these calibrations. Also, the base station is
+assumed to have TOS_NODE_ID 2.
+A2-3 sensor board: make micaz install.0 mib510,<port>
+A1-2 sensor board: make micaz install.1 mib510,<port>
+Base station: make micaz install.2 mib510,<port>
+
 
 Steps to play the game:
 1) Put control mote onto programming board and plug programmming board into computer
